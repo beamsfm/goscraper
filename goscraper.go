@@ -37,6 +37,7 @@ type DocumentPreview struct {
 	Title       string
 	Description string
 	Images      []string
+	OGImages    []string
 	Link        string
 }
 
@@ -290,7 +291,7 @@ func (scraper *Scraper) parseDocument(ctx context.Context, doc *Document) error 
 				}
 
 				doc.Preview.Images = []string{ogImgUrl.String()}
-
+				doc.Preview.OGImages = []string{ogImgUrl.String()}
 			}
 
 		case "title":
