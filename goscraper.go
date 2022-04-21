@@ -2,6 +2,7 @@ package goscraper
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -38,20 +39,38 @@ type DocumentPreview struct {
 	Link        string
 }
 
+type ScrapeOptions struct {
+	MaxRedirect int
+}
+
 func Scrape(uri string, maxRedirect int) (*Document, error) {
+	return ScrapeWithContext(context.TODO(), uri, ScrapeOptions{
+		MaxRedirect: maxRedirect,
+	})
+}
+
+func ScrapeWithContext(ctx context.Context, uri string, options ScrapeOptions) (*Document, error) {
 	u, err := url.Parse(uri)
 	if err != nil {
 		return nil, err
 	}
-	return (&Scraper{Url: u, MaxRedirect: maxRedirect}).Scrape()
+
+	return (&Scraper{
+		Url:         u,
+		MaxRedirect: options.MaxRedirect,
+	}).ScrapeWithContext(ctx)
 }
 
 func (scraper *Scraper) Scrape() (*Document, error) {
-	doc, err := scraper.getDocument()
+	return scraper.ScrapeWithContext(context.TODO())
+}
+
+func (scraper *Scraper) ScrapeWithContext(ctx context.Context) (*Document, error) {
+	doc, err := scraper.getDocument(ctx)
 	if err != nil {
 		return nil, err
 	}
-	err = scraper.parseDocument(doc)
+	err = scraper.parseDocument(ctx, doc)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +127,7 @@ func (scraper *Scraper) toFragmentUrl() error {
 	return nil
 }
 
-func (scraper *Scraper) getDocument() (*Document, error) {
+func (scraper *Scraper) getDocument(ctx context.Context) (*Document, error) {
 	scraper.MaxRedirect -= 1
 	if strings.Contains(scraper.Url.String(), "#!") {
 		scraper.toFragmentUrl()
@@ -117,7 +136,7 @@ func (scraper *Scraper) getDocument() (*Document, error) {
 		scraper.EscapedFragmentUrl = scraper.Url
 	}
 
-	req, err := http.NewRequest("GET", scraper.getUrl(), nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", scraper.getUrl(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +176,7 @@ func convertUTF8(content io.Reader, contentType string) (bytes.Buffer, error) {
 	return buff, nil
 }
 
-func (scraper *Scraper) parseDocument(doc *Document) error {
+func (scraper *Scraper) parseDocument(ctx context.Context, doc *Document) error {
 	t := html.NewTokenizer(&doc.Body)
 	var ogImage bool
 	var headPassed bool
@@ -197,7 +216,7 @@ func (scraper *Scraper) parseDocument(doc *Document) error {
 				if cleanStr(attr.Key) == "rel" && cleanStr(attr.Val) == "canonical" {
 					canonical = true
 				}
-				if cleanStr(attr.Key) == "rel" && strings.Contains(cleanStr(attr.Val),  "icon") {
+				if cleanStr(attr.Key) == "rel" && strings.Contains(cleanStr(attr.Val), "icon") {
 					hasIcon = true
 				}
 				if cleanStr(attr.Key) == "href" {
@@ -299,22 +318,22 @@ func (scraper *Scraper) parseDocument(doc *Document) error {
 			}
 			scraper.Url = canonicalUrl
 			scraper.EscapedFragmentUrl = nil
-			fdoc, err := scraper.getDocument()
+			fdoc, err := scraper.getDocument(ctx)
 			if err != nil {
 				return err
 			}
 			*doc = *fdoc
-			return scraper.parseDocument(doc)
+			return scraper.parseDocument(ctx, doc)
 		}
 
 		if hasFragment && headPassed && scraper.MaxRedirect > 0 {
 			scraper.toFragmentUrl()
-			fdoc, err := scraper.getDocument()
+			fdoc, err := scraper.getDocument(ctx)
 			if err != nil {
 				return err
 			}
 			*doc = *fdoc
-			return scraper.parseDocument(doc)
+			return scraper.parseDocument(ctx, doc)
 		}
 
 		if len(doc.Preview.Title) > 0 && len(doc.Preview.Description) > 0 && ogImage && headPassed {
