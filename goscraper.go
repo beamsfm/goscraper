@@ -284,10 +284,18 @@ func (scraper *Scraper) parseDocument(ctx context.Context, doc *Document) error 
 				if err != nil {
 					return err
 				}
+
 				if !ogImgUrl.IsAbs() {
-					ogImgUrl, err = url.Parse(fmt.Sprintf("%s://%s%s", scraper.Url.Scheme, scraper.Url.Host, ogImgUrl.Path))
-					if err != nil {
-						return err
+					if ogImgUrl.Host != "" {
+						ogImgUrl, err = url.Parse(fmt.Sprintf("%s://%s%s", scraper.Url.Scheme, ogImgUrl.Host, ogImgUrl.Path))
+						if err != nil {
+							return err
+						}
+					} else {
+						ogImgUrl, err = url.Parse(fmt.Sprintf("%s://%s%s", scraper.Url.Scheme, scraper.Url.Host, ogImgUrl.Path))
+						if err != nil {
+							return err
+						}
 					}
 				}
 
