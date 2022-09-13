@@ -278,6 +278,7 @@ func (scraper *Scraper) parseDocument(ctx context.Context, doc *Document) error 
 			case "og:url":
 				doc.Preview.Link = content
 			case "og:image":
+			case "og:image:secure_url":
 				ogImage = true
 				ogImgUrl, err := url.Parse(content)
 				if err != nil {
